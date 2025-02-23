@@ -83,7 +83,7 @@
         </div>
         <div class="mb-2">
             <input type="file" name="foto" class="form-control">
-            {{-- <input type="hidden" name="foto" value="{{ $karyawan->k_foto }}"> --}}
+            <input type="hidden" name="foto_lama" value="{{ $karyawan->k_foto }}">
         </div>
         <div class="mb-4">
             <select name="kode_dept" id="" class="form-control" list="datalistOptions"

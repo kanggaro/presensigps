@@ -130,17 +130,14 @@ class KaryawanController extends Controller
         return view('karyawan.edit', compact('departement', 'karyawan'));
     }
 
-    public function update($nik, Request $request){
+    public function update($nik, Request $request) {
         $request->validate([
-            // 'nik' => 'required|unique:tb_karyawan,k_nik',
             'nama_lengkap' => 'required',
             'jabatan' => 'required',
             'nohp' => 'required|regex:/^[0-9]+$/|min:10|max:15',
             'foto' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'kode_dept' => 'required|exists:tb_departement,d_kode_dept',
-        ],[        
-            // 'nik.required' => 'NIK wajib diisi!',
-            // 'nik.unique' => 'NIK sudah terdaftar!',
+        ], [
             'nama_lengkap.required' => 'Nama Lengkap wajib diisi!',
             'jabatan.required' => 'Jabatan wajib diisi!',
             'nohp.required' => 'Nomor HP wajib diisi!',
@@ -153,55 +150,53 @@ class KaryawanController extends Controller
             'kode_dept.required' => 'Departemen wajib dipilih!',
             'kode_dept.exists' => 'Departemen yang dipilih tidak valid!',
         ]);
-
-        // $nik = $request->nik;
+    
+        // Ambil data karyawan berdasarkan NIK
+        $karyawan = DB::table('tb_karyawan')->where('k_nik', $nik)->first();
+        
+        if (!$karyawan) {
+            return Redirect::back()->with(['error' => 'Data karyawan tidak ditemukan!']);
+        }
+    
         $namaLengkap = $request->nama_lengkap;
         $jabatan = $request->jabatan;
         $noHp = $request->nohp;
         $kodeDept = $request->kode_dept;
-        $foto = $request->foto;
-
-        // $password = Hash::make('12345');
-        $fotoLamaObject = DB::table('tb_karyawan')->select('k_foto')->where('k_nik', $nik)->first();
-        $fotoLama = $fotoLamaObject->k_foto;
- 
-        if($request->hasFile('foto')){
-            $storeFormatFoto = $nik . "." . $request->file('foto')->getClientOriginalExtension();
+        $foto_lama = $karyawan->k_foto; // Ambil foto lama dari database
+        $folderPath = "uploads/karyawan/";
+    
+        // Jika ada file baru, proses penyimpanan
+        if ($request->hasFile('foto')) {
+            $file = $request->file('foto');
+            $storeFormatFoto = $nik . "." . $file->getClientOriginalExtension();
             $foto = $storeFormatFoto;
-        }
-        else{
-            $foto = $fotoLama;
-        }
-
-        try{
-            DB::beginTransaction();
-            $data = [
-                'k_nik'=> $nik,
-                'k_nama_lengkap'=> $namaLengkap,
-                'k_jabatan'=> $jabatan,
-                'k_no_hp'=> $noHp,
-                'k_foto'=> $foto,
-                'k_kode_dept'=> $kodeDept,
-                // 'password'=> $password
-            ];
-
-            $updateDataKaryawan = DB::table('tb_karyawan')->where('k_nik', $nik)->update($data);
-            if($updateDataKaryawan && $foto != null){    
-                $folderPath = "uploads/karyawan/";
-                $folderPathFotoLama = "uploads/karyawan/".$fotoLama;
-                Storage::delete($folderPathFotoLama);
-                $request->file('foto')->storeAs($folderPath, $foto);
+    
+            // Hapus foto lama jika ada
+            if ($foto_lama && Storage::disk('public')->exists($folderPath . $foto_lama)) {
+                Storage::disk('public')->delete($folderPath . $foto_lama);
             }
-            
-            DB::commit();
+    
+            // Simpan foto baru
+            $file->storeAs($folderPath, $foto, 'public');
+        } else {
+            // Jika tidak ada file baru, gunakan foto lama
+            $foto = $foto_lama;
+        }
+    
+        try {
+            DB::transaction(function () use ($nik, $namaLengkap, $jabatan, $noHp, $kodeDept, $foto) {
+                DB::table('tb_karyawan')->where('k_nik', $nik)->update([
+                    'k_nama_lengkap' => $namaLengkap,
+                    'k_jabatan' => $jabatan,
+                    'k_no_hp' => $noHp,
+                    'k_foto' => $foto,
+                    'k_kode_dept' => $kodeDept,
+                ]);
+            });
     
             return Redirect::back()->with(['success' => 'Data Berhasil DiUpdate!']);
-
-        }catch (\Exception $e){
-            // dd($e->getMessage());
-
-            DB::rollBack();
-            return Redirect::back()->with(['error'=>'Data Gagal DiUpdate!']);
+        } catch (\Exception $e) {
+            return Redirect::back()->with(['error' => 'Data Gagal DiUpdate!']);
         }
     }
 
